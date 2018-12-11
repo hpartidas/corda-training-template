@@ -1,9 +1,8 @@
 package net.corda.training.contract
 
-import net.corda.core.contracts.CommandData
-import net.corda.core.contracts.Contract
-import net.corda.core.contracts.requireSingleCommand
+import net.corda.core.contracts.*
 import net.corda.core.transactions.LedgerTransaction
+import net.corda.nodeapi.internal.persistence.contextTransaction
 import net.corda.training.state.IOUState
 
 /**
@@ -25,6 +24,7 @@ class IOUContract : Contract {
         // Add commands here.
         // E.g
         // class DoSomething : TypeOnlyCommandData(), Commands
+        class Issue: TypeOnlyCommandData(), Commands
     }
 
     /**
@@ -36,5 +36,18 @@ class IOUContract : Contract {
         // requireThat {
         //     ...
         // }
+        val command: CommandWithParties<Commands> = tx.commands.requireSingleCommand<IOUContract.Commands>()
+
+        when (command.value) {
+            is Commands.Issue -> requireThat {
+                "No inputs should be consumed when issuing an IOU." using (tx.inputs.isEmpty())
+                "Only one output state should be created when issuing an IOU." using (tx.outputs.size == 1)
+
+                val output: IOUState = tx.outputStates.single() as IOUState
+                "A newly issued IOU must have a positive amount." using (output.amount.quantity > 0)
+
+                "The lender and borrower cannot have the same identity." using (output.lender != output.borrower)
+            }
+        }
     }
 }
